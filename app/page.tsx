@@ -444,13 +444,13 @@ export default function Home() {
       [
         "Employee",
         "Job title",
-        "Annual salary",
-        "Monthly compensation",
+        "Annual comp",
+        "Monthly comp",
         "Compensation percentage",
-        "Allocated overhead",
-        "Break-even revenue",
-        "Profit contribution",
-        "Final revenue target",
+        "Monthly allocated overhead",
+        "Monthly break-even revenue",
+        "Monthly profit contribution",
+        "Monthly revenue target",
       ],
       ...model.targets.map((target) => [
         target.name,
@@ -549,13 +549,13 @@ export default function Home() {
                   <tr>
                     <th className="px-4 py-3">Employee</th>
                     <th className="px-4 py-3">Title</th>
-                    <th className="px-4 py-3 text-right">Annual salary</th>
+                    <th className="px-4 py-3 text-right">Annual comp</th>
                     <th className="px-4 py-3 text-right">Monthly comp</th>
                     <th className="px-4 py-3 text-right">Share</th>
-                    <th className="px-4 py-3 text-right">Overhead</th>
-                    <th className="px-4 py-3 text-right">Break-even</th>
-                    <th className="px-4 py-3 text-right">Profit</th>
-                    <th className="px-4 py-3 text-right">Target</th>
+                    <th className="px-4 py-3 text-right">Monthly overhead</th>
+                    <th className="px-4 py-3 text-right">Monthly break-even</th>
+                    <th className="px-4 py-3 text-right">Monthly profit</th>
+                    <th className="px-4 py-3 text-right">Monthly target</th>
                   </tr>
                 </thead>
                 <tbody>
