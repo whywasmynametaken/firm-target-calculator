@@ -750,7 +750,7 @@ export default function Home() {
           <Metric label="Firm revenue target" value={currency(model.firmRevenueTarget)} tone="green" />
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <section className="mt-6">
           <div className="overflow-hidden border border-[#d8d2c4] bg-white">
             <div className="flex flex-col gap-3 border-b border-[#d8d2c4] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div>
@@ -841,51 +841,9 @@ export default function Home() {
               </p>
             ) : null}
           </div>
-
-          <div className="border border-[#d8d2c4] bg-white p-4">
-            <h2 className="text-xl font-semibold">Saved scenarios</h2>
-            <div className="mt-4 flex gap-2">
-              <input
-                className="field"
-                value={scenarioName}
-                onChange={(event) => setScenarioName(event.target.value)}
-                aria-label="Scenario name"
-              />
-              <button className="btn-primary shrink-0" type="button" onClick={saveScenario}>
-                Save
-              </button>
-            </div>
-            <div className="mt-4 space-y-2">
-              {scenarios.map((scenario) => (
-                <div
-                  className="flex items-center justify-between gap-3 border border-[#eee9df] px-3 py-3"
-                  key={scenario.id}
-                >
-                  <div>
-                    <p className="font-medium">{scenario.name}</p>
-                    <p className="text-xs text-[#5f6b73]">
-                      {new Date(scenario.savedAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <button
-                    className="btn-secondary"
-                    type="button"
-                    onClick={() => loadScenario(scenario)}
-                  >
-                    Load
-                  </button>
-                </div>
-              ))}
-              {scenarios.length === 0 ? (
-                <p className="text-sm text-[#5f6b73]">
-                  Save a snapshot before changing assumptions.
-                </p>
-              ) : null}
-            </div>
-          </div>
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-2">
+        <section className="mt-6 grid gap-6 xl:grid-cols-3">
           <Panel title="Expenses" action={<button className="btn-secondary" onClick={exportExpenses} type="button">Export CSV</button>}>
             <form className="form-grid" onSubmit={submitExpense}>
               <input className="field" name="name" placeholder="Expense name" value={expenseDraft.name} onChange={updateExpenseDraft} />
@@ -1064,6 +1022,47 @@ export default function Home() {
                 No employees match the current filters.
               </p>
             ) : null}
+          </Panel>
+
+          <Panel title="Saved scenarios">
+            <div className="flex gap-2">
+              <input
+                className="field"
+                value={scenarioName}
+                onChange={(event) => setScenarioName(event.target.value)}
+                aria-label="Scenario name"
+              />
+              <button className="btn-primary shrink-0" type="button" onClick={saveScenario}>
+                Save
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {scenarios.map((scenario) => (
+                <div
+                  className="flex items-center justify-between gap-3 border border-[#eee9df] px-3 py-3"
+                  key={scenario.id}
+                >
+                  <div>
+                    <p className="font-medium">{scenario.name}</p>
+                    <p className="text-xs text-[#5f6b73]">
+                      {new Date(scenario.savedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    type="button"
+                    onClick={() => loadScenario(scenario)}
+                  >
+                    Load
+                  </button>
+                </div>
+              ))}
+              {scenarios.length === 0 ? (
+                <p className="text-sm text-[#5f6b73]">
+                  Save a snapshot before changing assumptions.
+                </p>
+              ) : null}
+            </div>
           </Panel>
         </section>
       </div>
