@@ -32,7 +32,8 @@ type Employee = {
   id: string;
   name: string;
   title: string;
-  monthlyCompensation: number;
+  annualSalary: number;
+  monthlyCompensation?: number;
   billing: boolean;
   active: boolean;
   notes: string;
@@ -116,7 +117,7 @@ const starterEmployees: Employee[] = [
     id: "emp-a",
     name: "Attorney A",
     title: "Partner",
-    monthlyCompensation: 20000,
+    annualSalary: 240000,
     billing: true,
     active: true,
     notes: "",
@@ -125,7 +126,7 @@ const starterEmployees: Employee[] = [
     id: "emp-b",
     name: "Attorney B",
     title: "Associate",
-    monthlyCompensation: 12000,
+    annualSalary: 144000,
     billing: true,
     active: true,
     notes: "",
@@ -134,7 +135,7 @@ const starterEmployees: Employee[] = [
     id: "emp-c",
     name: "Paralegal C",
     title: "Paralegal",
-    monthlyCompensation: 8000,
+    annualSalary: 96000,
     billing: true,
     active: true,
     notes: "",
@@ -143,7 +144,7 @@ const starterEmployees: Employee[] = [
     id: "emp-admin",
     name: "Operations team",
     title: "Administration",
-    monthlyCompensation: 69000,
+    annualSalary: 828000,
     billing: false,
     active: true,
     notes: "Shared overhead payroll",
@@ -162,7 +163,7 @@ const expenseBlank: Omit<Expense, "id"> = {
 const employeeBlank: Omit<Employee, "id"> = {
   name: "",
   title: "",
-  monthlyCompensation: 0,
+  annualSalary: 0,
   billing: true,
   active: true,
   notes: "",
@@ -188,6 +189,23 @@ function monthlyAmount(amount: number, frequency: Frequency) {
     default:
       return value;
   }
+}
+
+function employeeMonthlyCompensation(employee: Employee) {
+  if (Number.isFinite(employee.annualSalary)) {
+    return employee.annualSalary / 12;
+  }
+  return (employee.monthlyCompensation ?? 0);
+}
+
+function normalizeEmployee(employee: Employee): Employee {
+  if (Number.isFinite(employee.annualSalary)) {
+    return employee;
+  }
+  return {
+    ...employee,
+    annualSalary: (employee.monthlyCompensation ?? 0) * 12,
+  };
 }
 
 function currency(value: number) {
@@ -239,9 +257,14 @@ export default function Home() {
     if (stored) {
       const data = JSON.parse(stored);
       setExpenses(data.expenses ?? starterExpenses);
-      setEmployees(data.employees ?? starterEmployees);
+      setEmployees((data.employees ?? starterEmployees).map(normalizeEmployee));
       setProfitMargin(data.profitMargin ?? 20);
-      setScenarios(data.scenarios ?? []);
+      setScenarios(
+        (data.scenarios ?? []).map((scenario: Scenario) => ({
+          ...scenario,
+          employees: scenario.employees.map(normalizeEmployee),
+        })),
+      );
     }
     setLoaded(true);
   }, []);
@@ -264,11 +287,11 @@ export default function Home() {
       0,
     );
     const billingCompensation = billingEmployees.reduce(
-      (sum, employee) => sum + employee.monthlyCompensation,
+      (sum, employee) => sum + employeeMonthlyCompensation(employee),
       0,
     );
     const nonBillingPayroll = nonBillingEmployees.reduce(
-      (sum, employee) => sum + employee.monthlyCompensation,
+      (sum, employee) => sum + employeeMonthlyCompensation(employee),
       0,
     );
     const sharedOverhead = nonBillingPayroll + otherExpenses;
@@ -280,13 +303,15 @@ export default function Home() {
     const targets = billingEmployees.map((employee) => {
       const compensationShare =
         billingCompensation > 0
-          ? employee.monthlyCompensation / billingCompensation
+          ? employeeMonthlyCompensation(employee) / billingCompensation
           : 0;
       const allocatedOverhead = sharedOverhead * compensationShare;
-      const breakEven = employee.monthlyCompensation + allocatedOverhead;
+      const monthlyCompensation = employeeMonthlyCompensation(employee);
+      const breakEven = monthlyCompensation + allocatedOverhead;
       const finalTarget = marginDecimal >= 1 ? 0 : breakEven / (1 - marginDecimal);
       return {
         ...employee,
+        monthlyCompensation,
         compensationShare,
         allocatedOverhead,
         breakEven,
@@ -339,7 +364,7 @@ export default function Home() {
       [name]:
         type === "checkbox"
           ? checked
-          : name === "monthlyCompensation"
+          : name === "annualSalary"
             ? Number(value)
             : value,
     }));
@@ -419,6 +444,7 @@ export default function Home() {
       [
         "Employee",
         "Job title",
+        "Annual salary",
         "Monthly compensation",
         "Compensation percentage",
         "Allocated overhead",
@@ -429,6 +455,7 @@ export default function Home() {
       ...model.targets.map((target) => [
         target.name,
         target.title,
+        target.annualSalary,
         target.monthlyCompensation,
         (target.compensationShare * 100).toFixed(2),
         target.allocatedOverhead.toFixed(2),
@@ -517,12 +544,13 @@ export default function Home() {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-sm">
+              <table className="w-full min-w-[1000px] text-left text-sm">
                 <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
                   <tr>
                     <th className="px-4 py-3">Employee</th>
                     <th className="px-4 py-3">Title</th>
-                    <th className="px-4 py-3 text-right">Comp</th>
+                    <th className="px-4 py-3 text-right">Annual salary</th>
+                    <th className="px-4 py-3 text-right">Monthly comp</th>
                     <th className="px-4 py-3 text-right">Share</th>
                     <th className="px-4 py-3 text-right">Overhead</th>
                     <th className="px-4 py-3 text-right">Break-even</th>
@@ -535,6 +563,7 @@ export default function Home() {
                     <tr key={target.id} className="border-t border-[#eee9df]">
                       <td className="px-4 py-4 font-medium">{target.name}</td>
                       <td className="px-4 py-4 text-[#5f6b73]">{target.title}</td>
+                      <td className="px-4 py-4 text-right">{currency(target.annualSalary)}</td>
                       <td className="px-4 py-4 text-right">{currency(target.monthlyCompensation)}</td>
                       <td className="px-4 py-4 text-right">{percent(target.compensationShare)}</td>
                       <td className="px-4 py-4 text-right">{currency(target.allocatedOverhead)}</td>
@@ -652,7 +681,14 @@ export default function Home() {
             <form className="form-grid" onSubmit={submitEmployee}>
               <input className="field" name="name" placeholder="Employee name" value={employeeDraft.name} onChange={updateEmployeeDraft} />
               <input className="field" name="title" placeholder="Job title" value={employeeDraft.title} onChange={updateEmployeeDraft} />
-              <input className="field" min="0" name="monthlyCompensation" placeholder="Monthly compensation" type="number" value={employeeDraft.monthlyCompensation} onChange={updateEmployeeDraft} />
+              <label className="field-label">
+                <span>Annual salary</span>
+                <input className="field" min="0" name="annualSalary" placeholder="Annual salary" type="number" value={employeeDraft.annualSalary} onChange={updateEmployeeDraft} />
+              </label>
+              <div className="calculated-field">
+                <span>Calculated monthly</span>
+                <strong>{currency(employeeDraft.annualSalary / 12)}</strong>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="check">
                   <input name="billing" type="checkbox" checked={employeeDraft.billing} onChange={updateEmployeeDraft} />
@@ -674,7 +710,7 @@ export default function Home() {
                   <div>
                     <p className="font-medium">{employee.name}</p>
                     <p className="text-sm text-[#5f6b73]">
-                      {employee.title || "No title"} | {currency(employee.monthlyCompensation)}/mo | {employee.billing ? "Billing" : "Non-billing"}
+                      {employee.title || "No title"} | {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {employee.billing ? "Billing" : "Non-billing"}
                     </p>
                   </div>
                   <RowActions
@@ -719,7 +755,7 @@ function Panel({
   children,
 }: {
   title: string;
-  action?: React.ReactNode;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
