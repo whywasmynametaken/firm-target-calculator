@@ -248,10 +248,6 @@ function employeeTags(employee: Employee) {
   ]);
 }
 
-function tagsLabel(tags: string[]) {
-  return tags.length ? tags.join(", ") : "No tags";
-}
-
 function normalizeEmployee(employee: Employee): Employee {
   const revenueResponsibility =
     employee.revenueResponsibility ?? (employee.billing ? "individual" : "none");
@@ -616,7 +612,6 @@ export default function Home() {
         "Target owner",
         "Type",
         "Members",
-        "Tags",
         "Annual comp",
         "Monthly comp",
         "Compensation percentage",
@@ -629,7 +624,6 @@ export default function Home() {
         target.name,
         target.type,
         target.members,
-        tagsLabel(target.tags),
         target.annualSalary,
         target.monthlyCompensation,
         (target.compensationShare * 100).toFixed(2),
@@ -719,13 +713,12 @@ export default function Home() {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1240px] text-left text-sm">
+              <table className="w-full min-w-[1120px] text-left text-sm">
                 <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
                   <tr>
                     <th className="px-4 py-3">Target owner</th>
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Members</th>
-                    <th className="px-4 py-3">Tags</th>
                     <th className="px-4 py-3 text-right">Annual comp</th>
                     <th className="px-4 py-3 text-right">Monthly comp</th>
                     <th className="px-4 py-3 text-right">Share</th>
@@ -742,9 +735,6 @@ export default function Home() {
                       <td className="px-4 py-4 text-[#5f6b73]">{target.type}</td>
                       <td className="max-w-56 px-4 py-4 text-[#5f6b73]">
                         {target.members || target.title || "-"}
-                      </td>
-                      <td className="max-w-60 px-4 py-4">
-                        <TagList tags={target.tags} />
                       </td>
                       <td className="px-4 py-4 text-right">{currency(target.annualSalary)}</td>
                       <td className="px-4 py-4 text-right">{currency(target.monthlyCompensation)}</td>
