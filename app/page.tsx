@@ -257,17 +257,18 @@ function normalizeEmployee(employee: Employee): Employee {
     employee.revenueResponsibility ?? (employee.billing ? "individual" : "none");
   const teamName = employee.teamName ?? "";
   const tags = employeeTags(employee);
+  const { title: _legacyTitle, ...employeeWithoutTitle } = employee;
 
   if (Number.isFinite(employee.annualSalary)) {
     return {
-      ...employee,
+      ...employeeWithoutTitle,
       revenueResponsibility,
       teamName,
       tags,
     };
   }
   return {
-    ...employee,
+    ...employeeWithoutTitle,
     annualSalary: (employee.monthlyCompensation ?? 0) * 12,
     revenueResponsibility,
     teamName,
@@ -552,8 +553,9 @@ export default function Home() {
   function submitEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!employeeDraft.name.trim()) return;
+    const { title: _legacyTitle, ...draftWithoutTitle } = employeeDraft;
     const nextEmployee = {
-      ...employeeDraft,
+      ...draftWithoutTitle,
       tags: uniqueTags([...employeeDraft.tags, ...tagDraft.split(",")]),
     };
 
