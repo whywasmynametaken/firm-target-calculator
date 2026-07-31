@@ -34,9 +34,28 @@ type Employee = {
   title: string;
   annualSalary: number;
   monthlyCompensation?: number;
-  billing: boolean;
+  billing?: boolean;
+  revenueResponsibility: RevenueResponsibility;
+  teamName: string;
   active: boolean;
   notes: string;
+};
+
+type RevenueResponsibility = "individual" | "team" | "none";
+
+type TargetRow = {
+  id: string;
+  name: string;
+  title: string;
+  type: "Individual" | "Team";
+  members: string;
+  annualSalary: number;
+  monthlyCompensation: number;
+  compensationShare: number;
+  allocatedOverhead: number;
+  breakEven: number;
+  profitContribution: number;
+  finalTarget: number;
 };
 
 type Scenario = {
@@ -118,7 +137,8 @@ const starterEmployees: Employee[] = [
     name: "Attorney A",
     title: "Partner",
     annualSalary: 240000,
-    billing: true,
+    revenueResponsibility: "individual",
+    teamName: "",
     active: true,
     notes: "",
   },
@@ -127,7 +147,8 @@ const starterEmployees: Employee[] = [
     name: "Attorney B",
     title: "Associate",
     annualSalary: 144000,
-    billing: true,
+    revenueResponsibility: "individual",
+    teamName: "",
     active: true,
     notes: "",
   },
@@ -136,7 +157,8 @@ const starterEmployees: Employee[] = [
     name: "Paralegal C",
     title: "Paralegal",
     annualSalary: 96000,
-    billing: true,
+    revenueResponsibility: "team",
+    teamName: "Litigation Support",
     active: true,
     notes: "",
   },
@@ -145,7 +167,8 @@ const starterEmployees: Employee[] = [
     name: "Operations team",
     title: "Administration",
     annualSalary: 828000,
-    billing: false,
+    revenueResponsibility: "none",
+    teamName: "",
     active: true,
     notes: "Shared overhead payroll",
   },
@@ -164,7 +187,8 @@ const employeeBlank: Omit<Employee, "id"> = {
   name: "",
   title: "",
   annualSalary: 0,
-  billing: true,
+  revenueResponsibility: "individual",
+  teamName: "",
   active: true,
   notes: "",
 };
@@ -199,13 +223,36 @@ function employeeMonthlyCompensation(employee: Employee) {
 }
 
 function normalizeEmployee(employee: Employee): Employee {
+  const revenueResponsibility =
+    employee.revenueResponsibility ?? (employee.billing ? "individual" : "none");
+  const teamName = employee.teamName ?? "";
+
   if (Number.isFinite(employee.annualSalary)) {
-    return employee;
+    return {
+      ...employee,
+      revenueResponsibility,
+      teamName,
+    };
   }
   return {
     ...employee,
     annualSalary: (employee.monthlyCompensation ?? 0) * 12,
+    revenueResponsibility,
+    teamName,
   };
+}
+
+function isRevenueGenerating(employee: Employee) {
+  return employee.revenueResponsibility === "individual" ||
+    employee.revenueResponsibility === "team";
+}
+
+function responsibilityLabel(employee: Employee) {
+  if (employee.revenueResponsibility === "individual") return "Individual target";
+  if (employee.revenueResponsibility === "team") {
+    return `Team: ${employee.teamName.trim() || "Unassigned team"}`;
+  }
+  return "No revenue target";
 }
 
 function currency(value: number) {
@@ -280,17 +327,19 @@ export default function Home() {
   const model = useMemo(() => {
     const activeExpenses = expenses.filter((expense) => expense.active);
     const activeEmployees = employees.filter((employee) => employee.active);
-    const billingEmployees = activeEmployees.filter((employee) => employee.billing);
-    const nonBillingEmployees = activeEmployees.filter((employee) => !employee.billing);
+    const revenueEmployees = activeEmployees.filter(isRevenueGenerating);
+    const nonRevenueEmployees = activeEmployees.filter(
+      (employee) => !isRevenueGenerating(employee),
+    );
     const otherExpenses = activeExpenses.reduce(
       (sum, expense) => sum + monthlyAmount(expense.amount, expense.frequency),
       0,
     );
-    const billingCompensation = billingEmployees.reduce(
+    const billingCompensation = revenueEmployees.reduce(
       (sum, employee) => sum + employeeMonthlyCompensation(employee),
       0,
     );
-    const nonBillingPayroll = nonBillingEmployees.reduce(
+    const nonBillingPayroll = nonRevenueEmployees.reduce(
       (sum, employee) => sum + employeeMonthlyCompensation(employee),
       0,
     );
@@ -300,18 +349,49 @@ export default function Home() {
     const firmRevenueTarget =
       marginDecimal >= 1 ? 0 : operatingCost / (1 - marginDecimal);
     const requiredProfit = firmRevenueTarget - operatingCost;
-    const targets = billingEmployees.map((employee) => {
+    const groupedTargets = new Map<string, TargetRow>();
+
+    revenueEmployees.forEach((employee) => {
+      const isTeam = employee.revenueResponsibility === "team";
+      const teamName = employee.teamName.trim() || "Unassigned team";
+      const key = isTeam ? `team-${teamName.toLowerCase()}` : `employee-${employee.id}`;
+      const monthlyCompensation = employeeMonthlyCompensation(employee);
+      const existing = groupedTargets.get(key);
+
+      if (existing) {
+        existing.annualSalary += employee.annualSalary;
+        existing.monthlyCompensation += monthlyCompensation;
+        existing.members = [existing.members, employee.name].filter(Boolean).join(", ");
+        return;
+      }
+
+      groupedTargets.set(key, {
+        id: key,
+        name: isTeam ? teamName : employee.name,
+        title: isTeam ? "Shared team target" : employee.title,
+        type: isTeam ? "Team" : "Individual",
+        members: isTeam ? employee.name : "",
+        annualSalary: employee.annualSalary,
+        monthlyCompensation,
+        compensationShare: 0,
+        allocatedOverhead: 0,
+        breakEven: 0,
+        profitContribution: 0,
+        finalTarget: 0,
+      });
+    });
+
+    const targets = Array.from(groupedTargets.values()).map((target) => {
       const compensationShare =
         billingCompensation > 0
-          ? employeeMonthlyCompensation(employee) / billingCompensation
+          ? target.monthlyCompensation / billingCompensation
           : 0;
       const allocatedOverhead = sharedOverhead * compensationShare;
-      const monthlyCompensation = employeeMonthlyCompensation(employee);
-      const breakEven = monthlyCompensation + allocatedOverhead;
+      const breakEven = target.monthlyCompensation + allocatedOverhead;
       const finalTarget = marginDecimal >= 1 ? 0 : breakEven / (1 - marginDecimal);
+
       return {
-        ...employee,
-        monthlyCompensation,
+        ...target,
         compensationShare,
         allocatedOverhead,
         breakEven,
@@ -323,8 +403,8 @@ export default function Home() {
     return {
       activeExpenses,
       activeEmployees,
-      billingEmployees,
-      nonBillingEmployees,
+      billingEmployees: revenueEmployees,
+      nonBillingEmployees: nonRevenueEmployees,
       otherExpenses,
       billingCompensation,
       nonBillingPayroll,
@@ -354,7 +434,7 @@ export default function Home() {
   }
 
   function updateEmployeeDraft(
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) {
     const { name, value, type } = event.target;
     const checked =
@@ -442,8 +522,9 @@ export default function Home() {
   function exportTargets() {
     downloadCsv("billing-targets.csv", [
       [
-        "Employee",
-        "Job title",
+        "Target owner",
+        "Type",
+        "Members",
         "Annual comp",
         "Monthly comp",
         "Compensation percentage",
@@ -454,7 +535,8 @@ export default function Home() {
       ],
       ...model.targets.map((target) => [
         target.name,
-        target.title,
+        target.type,
+        target.members,
         target.annualSalary,
         target.monthlyCompensation,
         (target.compensationShare * 100).toFixed(2),
@@ -534,9 +616,9 @@ export default function Home() {
           <div className="overflow-hidden border border-[#d8d2c4] bg-white">
             <div className="flex flex-col gap-3 border-b border-[#d8d2c4] px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <h2 className="text-xl font-semibold">Billing employee targets</h2>
+                <h2 className="text-xl font-semibold">Revenue targets</h2>
                 <p className="text-sm text-[#5f6b73]">
-                  Allocation follows each employee&apos;s share of total billing compensation.
+                  Individual employees and shared teams are allocated overhead by compensation share.
                 </p>
               </div>
               <button className="btn-secondary" type="button" onClick={exportTargets}>
@@ -544,11 +626,12 @@ export default function Home() {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] text-left text-sm">
+              <table className="w-full min-w-[1120px] text-left text-sm">
                 <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
                   <tr>
-                    <th className="px-4 py-3">Employee</th>
-                    <th className="px-4 py-3">Title</th>
+                    <th className="px-4 py-3">Target owner</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Members</th>
                     <th className="px-4 py-3 text-right">Annual comp</th>
                     <th className="px-4 py-3 text-right">Monthly comp</th>
                     <th className="px-4 py-3 text-right">Share</th>
@@ -562,7 +645,10 @@ export default function Home() {
                   {model.targets.map((target) => (
                     <tr key={target.id} className="border-t border-[#eee9df]">
                       <td className="px-4 py-4 font-medium">{target.name}</td>
-                      <td className="px-4 py-4 text-[#5f6b73]">{target.title}</td>
+                      <td className="px-4 py-4 text-[#5f6b73]">{target.type}</td>
+                      <td className="max-w-56 px-4 py-4 text-[#5f6b73]">
+                        {target.members || target.title || "-"}
+                      </td>
                       <td className="px-4 py-4 text-right">{currency(target.annualSalary)}</td>
                       <td className="px-4 py-4 text-right">{currency(target.monthlyCompensation)}</td>
                       <td className="px-4 py-4 text-right">{percent(target.compensationShare)}</td>
@@ -579,7 +665,7 @@ export default function Home() {
             </div>
             {model.targets.length === 0 ? (
               <p className="px-4 py-5 text-sm text-[#5f6b73]">
-                Add at least one active billing employee to calculate targets.
+                Add at least one active individual or shared team employee to calculate targets.
               </p>
             ) : null}
           </div>
@@ -689,16 +775,42 @@ export default function Home() {
                 <span>Calculated monthly</span>
                 <strong>{currency(employeeDraft.annualSalary / 12)}</strong>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="check">
-                  <input name="billing" type="checkbox" checked={employeeDraft.billing} onChange={updateEmployeeDraft} />
-                  Billing
+              <label className="field-label">
+                <span>Revenue responsibility</span>
+                <select
+                  className="field"
+                  name="revenueResponsibility"
+                  value={employeeDraft.revenueResponsibility}
+                  onChange={updateEmployeeDraft}
+                >
+                  <option value="individual">Individual target</option>
+                  <option value="team">Shared team target</option>
+                  <option value="none">No revenue target</option>
+                </select>
+              </label>
+              {employeeDraft.revenueResponsibility === "team" ? (
+                <label className="field-label">
+                  <span>Team name</span>
+                  <input
+                    className="field"
+                    name="teamName"
+                    placeholder="Litigation Support"
+                    value={employeeDraft.teamName}
+                    onChange={updateEmployeeDraft}
+                  />
                 </label>
+              ) : (
                 <label className="check">
                   <input name="active" type="checkbox" checked={employeeDraft.active} onChange={updateEmployeeDraft} />
                   Active
                 </label>
-              </div>
+              )}
+              {employeeDraft.revenueResponsibility === "team" ? (
+                <label className="check md:col-span-2">
+                  <input name="active" type="checkbox" checked={employeeDraft.active} onChange={updateEmployeeDraft} />
+                  Active
+                </label>
+              ) : null}
               <textarea className="field md:col-span-2" name="notes" placeholder="Notes" value={employeeDraft.notes} onChange={updateEmployeeDraft} />
               <button className="btn-primary md:col-span-2" type="submit">
                 {editingEmployeeId ? "Update employee" : "Add employee"}
@@ -710,7 +822,7 @@ export default function Home() {
                   <div>
                     <p className="font-medium">{employee.name}</p>
                     <p className="text-sm text-[#5f6b73]">
-                      {employee.title || "No title"} | {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {employee.billing ? "Billing" : "Non-billing"}
+                      {employee.title || "No title"} | {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {responsibilityLabel(employee)}
                     </p>
                   </div>
                   <RowActions
