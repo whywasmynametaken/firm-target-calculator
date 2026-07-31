@@ -35,6 +35,7 @@ type Employee = {
   title?: string;
   tags: string[];
   annualSalary: number;
+  averageHourlyRate?: number;
   monthlyCompensation?: number;
   billing?: boolean;
   revenueResponsibility: RevenueResponsibility;
@@ -53,6 +54,8 @@ type TargetRow = {
   members: string;
   tags: string[];
   annualSalary: number;
+  averageHourlyRate: number;
+  hoursForMonthlyTarget: number | null;
   monthlyCompensation: number;
   compensationShare: number;
   allocatedOverhead: number;
@@ -140,6 +143,7 @@ const starterEmployees: Employee[] = [
     name: "Attorney A",
     tags: ["Partner", "Attorney"],
     annualSalary: 240000,
+    averageHourlyRate: 450,
     revenueResponsibility: "individual",
     teamName: "",
     active: true,
@@ -150,6 +154,7 @@ const starterEmployees: Employee[] = [
     name: "Attorney B",
     tags: ["Associate", "Attorney"],
     annualSalary: 144000,
+    averageHourlyRate: 375,
     revenueResponsibility: "individual",
     teamName: "",
     active: true,
@@ -160,6 +165,7 @@ const starterEmployees: Employee[] = [
     name: "Paralegal C",
     tags: ["Litigation", "Paralegal"],
     annualSalary: 96000,
+    averageHourlyRate: 0,
     revenueResponsibility: "team",
     teamName: "Litigation Support",
     active: true,
@@ -170,6 +176,7 @@ const starterEmployees: Employee[] = [
     name: "Operations team",
     tags: ["Administration"],
     annualSalary: 828000,
+    averageHourlyRate: 0,
     revenueResponsibility: "none",
     teamName: "",
     active: true,
@@ -190,6 +197,7 @@ const employeeBlank: Omit<Employee, "id"> = {
   name: "",
   tags: [],
   annualSalary: 0,
+  averageHourlyRate: 0,
   revenueResponsibility: "individual",
   teamName: "",
   active: true,
@@ -253,6 +261,7 @@ function normalizeEmployee(employee: Employee): Employee {
     employee.revenueResponsibility ?? (employee.billing ? "individual" : "none");
   const teamName = employee.teamName ?? "";
   const tags = employeeTags(employee);
+  const averageHourlyRate = employee.averageHourlyRate ?? 0;
   const { title: _legacyTitle, ...employeeWithoutTitle } = employee;
 
   if (Number.isFinite(employee.annualSalary)) {
@@ -261,6 +270,7 @@ function normalizeEmployee(employee: Employee): Employee {
       revenueResponsibility,
       teamName,
       tags,
+      averageHourlyRate,
     };
   }
   return {
@@ -269,6 +279,7 @@ function normalizeEmployee(employee: Employee): Employee {
     revenueResponsibility,
     teamName,
     tags,
+    averageHourlyRate,
   };
 }
 
@@ -298,6 +309,14 @@ function percent(value: number) {
     style: "percent",
     maximumFractionDigits: 1,
   }).format(Number.isFinite(value) ? value : 0);
+}
+
+function hours(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return "-";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  }).format(value);
 }
 
 function csvEscape(value: string | number | boolean) {
@@ -411,6 +430,8 @@ export default function Home() {
         members: isTeam ? employee.name : "",
         tags: employeeTags(employee),
         annualSalary: employee.annualSalary,
+        averageHourlyRate: isTeam ? 0 : (employee.averageHourlyRate ?? 0),
+        hoursForMonthlyTarget: null,
         monthlyCompensation,
         compensationShare: 0,
         allocatedOverhead: 0,
@@ -428,6 +449,10 @@ export default function Home() {
       const allocatedOverhead = sharedOverhead * compensationShare;
       const breakEven = target.monthlyCompensation + allocatedOverhead;
       const finalTarget = marginDecimal >= 1 ? 0 : breakEven / (1 - marginDecimal);
+      const hoursForMonthlyTarget =
+        target.type === "Individual" && target.averageHourlyRate > 0
+          ? finalTarget / target.averageHourlyRate
+          : null;
 
       return {
         ...target,
@@ -436,6 +461,7 @@ export default function Home() {
         breakEven,
         profitContribution: finalTarget - breakEven,
         finalTarget,
+        hoursForMonthlyTarget,
       };
     });
 
@@ -519,7 +545,7 @@ export default function Home() {
       [name]:
         type === "checkbox"
           ? checked
-          : name === "annualSalary"
+          : name === "annualSalary" || name === "averageHourlyRate"
             ? Number(value)
             : value,
     }));
@@ -636,6 +662,8 @@ export default function Home() {
         "Monthly break-even revenue",
         "Monthly profit contribution",
         "Monthly revenue target",
+        "Average hourly rate",
+        "Hours required for monthly target",
       ],
       ...filteredTargets.map((target) => [
         target.name,
@@ -648,6 +676,12 @@ export default function Home() {
         target.breakEven.toFixed(2),
         target.profitContribution.toFixed(2),
         target.finalTarget.toFixed(2),
+        target.type === "Individual" && target.averageHourlyRate > 0
+          ? target.averageHourlyRate.toFixed(2)
+          : "",
+        target.hoursForMonthlyTarget === null
+          ? ""
+          : target.hoursForMonthlyTarget.toFixed(1),
       ]),
     ]);
   }
@@ -747,7 +781,7 @@ export default function Home() {
               </select>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-left text-sm">
+              <table className="w-full min-w-[1340px] text-left text-sm">
                 <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
                   <tr>
                     <th className="px-4 py-3">Target owner</th>
@@ -760,6 +794,8 @@ export default function Home() {
                     <th className="px-4 py-3 text-right">Monthly break-even</th>
                     <th className="px-4 py-3 text-right">Monthly profit</th>
                     <th className="px-4 py-3 text-right">Monthly target</th>
+                    <th className="px-4 py-3 text-right">Avg hourly rate</th>
+                    <th className="px-4 py-3 text-right">Hours for monthly target</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -778,6 +814,16 @@ export default function Home() {
                       <td className="px-4 py-4 text-right">{currency(target.profitContribution)}</td>
                       <td className="px-4 py-4 text-right font-semibold text-[#0f6b4f]">
                         {currency(target.finalTarget)}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {target.type === "Individual" && target.averageHourlyRate > 0
+                          ? currency(target.averageHourlyRate)
+                          : target.type === "Individual"
+                            ? "Add rate"
+                            : "-"}
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        {hours(target.hoursForMonthlyTarget)}
                       </td>
                     </tr>
                   ))}
@@ -927,6 +973,20 @@ export default function Home() {
                   <option value="none">No revenue target</option>
                 </select>
               </label>
+              {employeeDraft.revenueResponsibility === "individual" ? (
+                <label className="field-label">
+                  <span>Average hourly rate</span>
+                  <input
+                    className="field"
+                    min="0"
+                    name="averageHourlyRate"
+                    placeholder="Average hourly rate"
+                    type="number"
+                    value={employeeDraft.averageHourlyRate ?? 0}
+                    onChange={updateEmployeeDraft}
+                  />
+                </label>
+              ) : null}
               {employeeDraft.revenueResponsibility === "team" ? (
                 <label className="field-label">
                   <span>Team name</span>
@@ -980,6 +1040,9 @@ export default function Home() {
                     <p className="font-medium">{employee.name}</p>
                     <p className="text-sm text-[#5f6b73]">
                       {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {responsibilityLabel(employee)}
+                      {employee.revenueResponsibility === "individual" && (employee.averageHourlyRate ?? 0) > 0
+                        ? ` | ${currency(employee.averageHourlyRate ?? 0)}/hr avg`
+                        : ""}
                     </p>
                     <TagList tags={employeeTags(employee)} />
                   </div>
