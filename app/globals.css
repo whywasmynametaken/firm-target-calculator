@@ -128,6 +128,84 @@ textarea {
   font-size: 1rem;
 }
 
+.tag-input {
+  display: flex;
+  min-height: 42px;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #cfc8b8;
+  background: #ffffff;
+  padding: 7px 8px;
+}
+
+.tag-input:focus-within {
+  border-color: #0f6b4f;
+  box-shadow: 0 0 0 3px rgba(15, 107, 79, 0.14);
+}
+
+.tag-input input {
+  min-width: 180px;
+  flex: 1;
+  border: 0;
+  padding: 4px;
+  outline: none;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.tag-input .tag-list {
+  margin-top: 0;
+}
+
+.tag-chip {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #b9d5c7;
+  background: #eef8f1;
+  color: #0f6b4f;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 5px 8px;
+}
+
+.tag-chip button {
+  min-height: 18px;
+  border: 0;
+  background: transparent;
+  color: #0f6b4f;
+  cursor: pointer;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0;
+}
+
+.tag-empty {
+  color: #8a949b;
+  font-size: 0.85rem;
+}
+
+.employee-filters {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (min-width: 768px) {
+  .employee-filters {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
 .form-grid {
   display: grid;
   gap: 12px;

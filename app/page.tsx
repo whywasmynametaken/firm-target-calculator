@@ -3,6 +3,7 @@
 import {
   ChangeEvent,
   FormEvent,
+  KeyboardEvent,
   ReactNode,
   useEffect,
   useMemo,
@@ -31,7 +32,8 @@ type Expense = {
 type Employee = {
   id: string;
   name: string;
-  title: string;
+  title?: string;
+  tags: string[];
   annualSalary: number;
   monthlyCompensation?: number;
   billing?: boolean;
@@ -49,6 +51,7 @@ type TargetRow = {
   title: string;
   type: "Individual" | "Team";
   members: string;
+  tags: string[];
   annualSalary: number;
   monthlyCompensation: number;
   compensationShare: number;
@@ -135,7 +138,7 @@ const starterEmployees: Employee[] = [
   {
     id: "emp-a",
     name: "Attorney A",
-    title: "Partner",
+    tags: ["Partner", "Attorney"],
     annualSalary: 240000,
     revenueResponsibility: "individual",
     teamName: "",
@@ -145,7 +148,7 @@ const starterEmployees: Employee[] = [
   {
     id: "emp-b",
     name: "Attorney B",
-    title: "Associate",
+    tags: ["Associate", "Attorney"],
     annualSalary: 144000,
     revenueResponsibility: "individual",
     teamName: "",
@@ -155,7 +158,7 @@ const starterEmployees: Employee[] = [
   {
     id: "emp-c",
     name: "Paralegal C",
-    title: "Paralegal",
+    tags: ["Litigation", "Paralegal"],
     annualSalary: 96000,
     revenueResponsibility: "team",
     teamName: "Litigation Support",
@@ -165,7 +168,7 @@ const starterEmployees: Employee[] = [
   {
     id: "emp-admin",
     name: "Operations team",
-    title: "Administration",
+    tags: ["Administration"],
     annualSalary: 828000,
     revenueResponsibility: "none",
     teamName: "",
@@ -185,7 +188,7 @@ const expenseBlank: Omit<Expense, "id"> = {
 
 const employeeBlank: Omit<Employee, "id"> = {
   name: "",
-  title: "",
+  tags: [],
   annualSalary: 0,
   revenueResponsibility: "individual",
   teamName: "",
@@ -222,16 +225,45 @@ function employeeMonthlyCompensation(employee: Employee) {
   return (employee.monthlyCompensation ?? 0);
 }
 
+function cleanTag(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function uniqueTags(tags: string[]) {
+  const seen = new Set<string>();
+  return tags
+    .map(cleanTag)
+    .filter((tag) => {
+      const key = tag.toLowerCase();
+      if (!tag || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function employeeTags(employee: Employee) {
+  return uniqueTags([
+    ...(employee.tags ?? []),
+    ...(employee.title ? [employee.title] : []),
+  ]);
+}
+
+function tagsLabel(tags: string[]) {
+  return tags.length ? tags.join(", ") : "No tags";
+}
+
 function normalizeEmployee(employee: Employee): Employee {
   const revenueResponsibility =
     employee.revenueResponsibility ?? (employee.billing ? "individual" : "none");
   const teamName = employee.teamName ?? "";
+  const tags = employeeTags(employee);
 
   if (Number.isFinite(employee.annualSalary)) {
     return {
       ...employee,
       revenueResponsibility,
       teamName,
+      tags,
     };
   }
   return {
@@ -239,6 +271,7 @@ function normalizeEmployee(employee: Employee): Employee {
     annualSalary: (employee.monthlyCompensation ?? 0) * 12,
     revenueResponsibility,
     teamName,
+    tags,
   };
 }
 
@@ -291,10 +324,14 @@ export default function Home() {
   const [employees, setEmployees] = useState<Employee[]>(starterEmployees);
   const [expenseDraft, setExpenseDraft] = useState(expenseBlank);
   const [employeeDraft, setEmployeeDraft] = useState(employeeBlank);
+  const [tagDraft, setTagDraft] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
   const [profitMargin, setProfitMargin] = useState(20);
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("All");
+  const [responsibilityFilter, setResponsibilityFilter] = useState("All");
   const [scenarioName, setScenarioName] = useState("Current plan");
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -362,15 +399,17 @@ export default function Home() {
         existing.annualSalary += employee.annualSalary;
         existing.monthlyCompensation += monthlyCompensation;
         existing.members = [existing.members, employee.name].filter(Boolean).join(", ");
+        existing.tags = uniqueTags([...existing.tags, ...employeeTags(employee)]);
         return;
       }
 
       groupedTargets.set(key, {
         id: key,
         name: isTeam ? teamName : employee.name,
-        title: isTeam ? "Shared team target" : employee.title,
+        title: isTeam ? "Shared team target" : (employee.title ?? ""),
         type: isTeam ? "Team" : "Individual",
         members: isTeam ? employee.name : "",
+        tags: employeeTags(employee),
         annualSalary: employee.annualSalary,
         monthlyCompensation,
         compensationShare: 0,
@@ -421,6 +460,28 @@ export default function Home() {
       ? expenses
       : expenses.filter((expense) => expense.category === categoryFilter);
 
+  const allTags = useMemo(
+    () => uniqueTags(employees.flatMap((employee) => employeeTags(employee))).sort(),
+    [employees],
+  );
+
+  const filteredEmployees = employees.filter((employee) => {
+    const search = employeeSearch.trim().toLowerCase();
+    const tags = employeeTags(employee);
+    const matchesSearch =
+      !search ||
+      employee.name.toLowerCase().includes(search) ||
+      tags.some((tag) => tag.toLowerCase().includes(search)) ||
+      employee.teamName.toLowerCase().includes(search) ||
+      employee.notes.toLowerCase().includes(search);
+    const matchesTag = tagFilter === "All" || tags.includes(tagFilter);
+    const matchesResponsibility =
+      responsibilityFilter === "All" ||
+      employee.revenueResponsibility === responsibilityFilter;
+
+    return matchesSearch && matchesTag && matchesResponsibility;
+  });
+
   function updateExpenseDraft(
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) {
@@ -450,6 +511,28 @@ export default function Home() {
     }));
   }
 
+  function addEmployeeTags(rawValue = tagDraft) {
+    const nextTags = uniqueTags([
+      ...employeeDraft.tags,
+      ...rawValue.split(","),
+    ]);
+    setEmployeeDraft((draft) => ({ ...draft, tags: nextTags }));
+    setTagDraft("");
+  }
+
+  function removeEmployeeTag(tagToRemove: string) {
+    setEmployeeDraft((draft) => ({
+      ...draft,
+      tags: draft.tags.filter((tag) => tag !== tagToRemove),
+    }));
+  }
+
+  function handleTagKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" && event.key !== ",") return;
+    event.preventDefault();
+    addEmployeeTags();
+  }
+
   function submitExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!expenseDraft.name.trim()) return;
@@ -469,17 +552,23 @@ export default function Home() {
   function submitEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!employeeDraft.name.trim()) return;
+    const nextEmployee = {
+      ...employeeDraft,
+      tags: uniqueTags([...employeeDraft.tags, ...tagDraft.split(",")]),
+    };
+
     if (editingEmployeeId) {
       setEmployees((items) =>
         items.map((item) =>
-          item.id === editingEmployeeId ? { ...employeeDraft, id: item.id } : item,
+          item.id === editingEmployeeId ? { ...nextEmployee, id: item.id } : item,
         ),
       );
       setEditingEmployeeId(null);
     } else {
-      setEmployees((items) => [...items, { ...employeeDraft, id: id("employee") }]);
+      setEmployees((items) => [...items, { ...nextEmployee, id: id("employee") }]);
     }
     setEmployeeDraft(employeeBlank);
+    setTagDraft("");
   }
 
   function saveScenario() {
@@ -499,7 +588,7 @@ export default function Home() {
 
   function loadScenario(scenario: Scenario) {
     setExpenses(scenario.expenses);
-    setEmployees(scenario.employees);
+    setEmployees(scenario.employees.map(normalizeEmployee));
     setProfitMargin(scenario.profitMargin);
     setScenarioName(scenario.name);
   }
@@ -525,6 +614,7 @@ export default function Home() {
         "Target owner",
         "Type",
         "Members",
+        "Tags",
         "Annual comp",
         "Monthly comp",
         "Compensation percentage",
@@ -537,6 +627,7 @@ export default function Home() {
         target.name,
         target.type,
         target.members,
+        tagsLabel(target.tags),
         target.annualSalary,
         target.monthlyCompensation,
         (target.compensationShare * 100).toFixed(2),
@@ -626,12 +717,13 @@ export default function Home() {
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-left text-sm">
+              <table className="w-full min-w-[1240px] text-left text-sm">
                 <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
                   <tr>
                     <th className="px-4 py-3">Target owner</th>
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Members</th>
+                    <th className="px-4 py-3">Tags</th>
                     <th className="px-4 py-3 text-right">Annual comp</th>
                     <th className="px-4 py-3 text-right">Monthly comp</th>
                     <th className="px-4 py-3 text-right">Share</th>
@@ -648,6 +740,9 @@ export default function Home() {
                       <td className="px-4 py-4 text-[#5f6b73]">{target.type}</td>
                       <td className="max-w-56 px-4 py-4 text-[#5f6b73]">
                         {target.members || target.title || "-"}
+                      </td>
+                      <td className="max-w-60 px-4 py-4">
+                        <TagList tags={target.tags} />
                       </td>
                       <td className="px-4 py-4 text-right">{currency(target.annualSalary)}</td>
                       <td className="px-4 py-4 text-right">{currency(target.monthlyCompensation)}</td>
@@ -766,7 +861,20 @@ export default function Home() {
           <Panel title="Employees">
             <form className="form-grid" onSubmit={submitEmployee}>
               <input className="field" name="name" placeholder="Employee name" value={employeeDraft.name} onChange={updateEmployeeDraft} />
-              <input className="field" name="title" placeholder="Job title" value={employeeDraft.title} onChange={updateEmployeeDraft} />
+              <label className="field-label">
+                <span>Tags</span>
+                <div className="tag-input">
+                  <TagList tags={employeeDraft.tags} onRemove={removeEmployeeTag} />
+                  <input
+                    aria-label="Add employee tag"
+                    placeholder="Type a tag, then Enter or comma"
+                    value={tagDraft}
+                    onBlur={() => addEmployeeTags()}
+                    onChange={(event) => setTagDraft(event.target.value)}
+                    onKeyDown={handleTagKeyDown}
+                  />
+                </div>
+              </label>
               <label className="field-label">
                 <span>Annual salary</span>
                 <input className="field" min="0" name="annualSalary" placeholder="Annual salary" type="number" value={employeeDraft.annualSalary} onChange={updateEmployeeDraft} />
@@ -816,19 +924,39 @@ export default function Home() {
                 {editingEmployeeId ? "Update employee" : "Add employee"}
               </button>
             </form>
+            <div className="employee-filters">
+              <input
+                className="field"
+                placeholder="Search employees or tags"
+                value={employeeSearch}
+                onChange={(event) => setEmployeeSearch(event.target.value)}
+              />
+              <select className="field" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
+                <option>All</option>
+                {allTags.map((tag) => <option key={tag}>{tag}</option>)}
+              </select>
+              <select className="field" value={responsibilityFilter} onChange={(event) => setResponsibilityFilter(event.target.value)}>
+                <option value="All">All responsibilities</option>
+                <option value="individual">Individual target</option>
+                <option value="team">Shared team target</option>
+                <option value="none">No revenue target</option>
+              </select>
+            </div>
             <ItemList>
-              {employees.map((employee) => (
+              {filteredEmployees.map((employee) => (
                 <li className="list-row" key={employee.id}>
                   <div>
                     <p className="font-medium">{employee.name}</p>
                     <p className="text-sm text-[#5f6b73]">
-                      {employee.title || "No title"} | {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {responsibilityLabel(employee)}
+                      {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {responsibilityLabel(employee)}
                     </p>
+                    <TagList tags={employeeTags(employee)} />
                   </div>
                   <RowActions
                     active={employee.active}
                     onEdit={() => {
-                      setEmployeeDraft({ ...employee });
+                      setEmployeeDraft(normalizeEmployee(employee));
+                      setTagDraft("");
                       setEditingEmployeeId(employee.id);
                     }}
                     onToggle={() => setEmployees((items) => items.map((item) => item.id === employee.id ? { ...item, active: !item.active } : item))}
@@ -837,6 +965,11 @@ export default function Home() {
                 </li>
               ))}
             </ItemList>
+            {filteredEmployees.length === 0 ? (
+              <p className="py-4 text-sm text-[#5f6b73]">
+                No employees match the current filters.
+              </p>
+            ) : null}
           </Panel>
         </section>
       </div>
@@ -883,6 +1016,37 @@ function Panel({
 
 function ItemList({ children }: { children: ReactNode }) {
   return <ul className="mt-4 divide-y divide-[#eee9df] border-t border-[#eee9df]">{children}</ul>;
+}
+
+function TagList({
+  tags,
+  onRemove,
+}: {
+  tags: string[];
+  onRemove?: (tag: string) => void;
+}) {
+  if (!tags.length) {
+    return <span className="tag-empty">No tags</span>;
+  }
+
+  return (
+    <div className="tag-list">
+      {tags.map((tag) => (
+        <span className="tag-chip" key={tag}>
+          {tag}
+          {onRemove ? (
+            <button
+              aria-label={`Remove ${tag}`}
+              onClick={() => onRemove(tag)}
+              type="button"
+            >
+              x
+            </button>
+          ) : null}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function RowActions({
