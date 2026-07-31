@@ -329,6 +329,9 @@ export default function Home() {
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("All");
   const [responsibilityFilter, setResponsibilityFilter] = useState("All");
+  const [targetSearch, setTargetSearch] = useState("");
+  const [targetTagFilter, setTargetTagFilter] = useState("All");
+  const [targetTypeFilter, setTargetTypeFilter] = useState("All");
   const [scenarioName, setScenarioName] = useState("Current plan");
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -479,6 +482,20 @@ export default function Home() {
     return matchesSearch && matchesTag && matchesResponsibility;
   });
 
+  const filteredTargets = model.targets.filter((target) => {
+    const search = targetSearch.trim().toLowerCase();
+    const matchesSearch =
+      !search ||
+      target.name.toLowerCase().includes(search) ||
+      target.members.toLowerCase().includes(search);
+    const matchesTag =
+      targetTagFilter === "All" || target.tags.includes(targetTagFilter);
+    const matchesType =
+      targetTypeFilter === "All" || target.type === targetTypeFilter;
+
+    return matchesSearch && matchesTag && matchesType;
+  });
+
   function updateExpenseDraft(
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) {
@@ -620,7 +637,7 @@ export default function Home() {
         "Monthly profit contribution",
         "Monthly revenue target",
       ],
-      ...model.targets.map((target) => [
+      ...filteredTargets.map((target) => [
         target.name,
         target.type,
         target.members,
@@ -712,6 +729,23 @@ export default function Home() {
                 Export CSV
               </button>
             </div>
+            <div className="target-filters">
+              <input
+                className="field"
+                placeholder="Search target owner or members"
+                value={targetSearch}
+                onChange={(event) => setTargetSearch(event.target.value)}
+              />
+              <select className="field" value={targetTagFilter} onChange={(event) => setTargetTagFilter(event.target.value)}>
+                <option>All</option>
+                {allTags.map((tag) => <option key={tag}>{tag}</option>)}
+              </select>
+              <select className="field" value={targetTypeFilter} onChange={(event) => setTargetTypeFilter(event.target.value)}>
+                <option value="All">All target types</option>
+                <option value="Individual">Individual</option>
+                <option value="Team">Team</option>
+              </select>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1120px] text-left text-sm">
                 <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
@@ -729,7 +763,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {model.targets.map((target) => (
+                  {filteredTargets.map((target) => (
                     <tr key={target.id} className="border-t border-[#eee9df]">
                       <td className="px-4 py-4 font-medium">{target.name}</td>
                       <td className="px-4 py-4 text-[#5f6b73]">{target.type}</td>
@@ -753,6 +787,11 @@ export default function Home() {
             {model.targets.length === 0 ? (
               <p className="px-4 py-5 text-sm text-[#5f6b73]">
                 Add at least one active individual or shared team employee to calculate targets.
+              </p>
+            ) : null}
+            {model.targets.length > 0 && filteredTargets.length === 0 ? (
+              <p className="px-4 py-5 text-sm text-[#5f6b73]">
+                No revenue targets match the current filters.
               </p>
             ) : null}
           </div>
