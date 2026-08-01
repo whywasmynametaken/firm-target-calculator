@@ -843,7 +843,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-3">
+        <section className="mt-6 grid gap-6">
           <Panel title="Expenses" action={<button className="btn-secondary" onClick={exportExpenses} type="button">Export CSV</button>}>
             <form className="form-grid" onSubmit={submitExpense}>
               <input className="field" name="name" placeholder="Expense name" value={expenseDraft.name} onChange={updateExpenseDraft} />
@@ -875,7 +875,7 @@ export default function Home() {
                 <li className="list-row" key={expense.id}>
                   <div>
                     <p className="font-medium">{expense.name}</p>
-                    <p className="text-sm text-[#5f6b73]">
+                    <p className="row-meta">
                       {expense.category} | {currency(expense.amount)} {expense.frequency} | {currency(monthlyAmount(expense.amount, expense.frequency))}/mo
                     </p>
                   </div>
@@ -996,7 +996,7 @@ export default function Home() {
                 <li className="list-row" key={employee.id}>
                   <div>
                     <p className="font-medium">{employee.name}</p>
-                    <p className="text-sm text-[#5f6b73]">
+                    <p className="row-meta">
                       {currency(employee.annualSalary)}/yr | {currency(employeeMonthlyCompensation(employee))}/mo | {responsibilityLabel(employee)}
                       {employee.revenueResponsibility === "individual" && (employee.averageHourlyRate ?? 0) > 0
                         ? ` | ${currency(employee.averageHourlyRate ?? 0)}/hr avg`

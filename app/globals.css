@@ -302,6 +302,16 @@ textarea {
   padding: 14px 0;
 }
 
+.list-row > div:first-child {
+  min-width: 0;
+}
+
+.row-meta {
+  color: #5f6b73;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 720px) {
   .list-row {
     align-items: flex-start;
