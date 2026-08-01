@@ -217,7 +217,7 @@ textarea {
   table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .revenue-table thead {
@@ -230,7 +230,7 @@ textarea {
 .revenue-table th,
 .revenue-table td {
   border-top: 1px solid #eee9df;
-  padding: 10px 8px;
+  padding: 10px 7px;
   vertical-align: middle;
 }
 
@@ -248,19 +248,19 @@ textarea {
 }
 
 .revenue-table .col-owner {
-  width: 11%;
+  width: 14%;
 }
 
 .revenue-table .col-type {
-  width: 7%;
+  width: 6.5%;
 }
 
 .revenue-table .col-members {
-  width: 12%;
+  width: 10%;
 }
 
 .revenue-table .col-members span,
-.revenue-table .col-owner {
+.revenue-table .col-owner span {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -272,7 +272,7 @@ textarea {
 }
 
 .revenue-table .col-hours {
-  width: 7%;
+  width: 6.5%;
 }
 
 @media (min-width: 768px) {

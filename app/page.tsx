@@ -801,7 +801,9 @@ export default function Home() {
                 <tbody>
                   {filteredTargets.map((target) => (
                     <tr key={target.id}>
-                      <td className="col-owner font-medium" title={target.name}>{target.name}</td>
+                      <td className="col-owner font-medium" title={target.name}>
+                        <span>{target.name}</span>
+                      </td>
                       <td className="col-type muted">{target.type}</td>
                       <td className="col-members muted" title={target.members || target.title || "-"}>
                         <span>{target.members || target.title || "-"}</span>
