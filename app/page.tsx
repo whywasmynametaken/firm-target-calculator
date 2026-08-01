@@ -780,49 +780,49 @@ export default function Home() {
                 <option value="Team">Team</option>
               </select>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1340px] text-left text-sm">
-                <thead className="bg-[#eee9df] text-xs uppercase text-[#5f6b73]">
+            <div className="revenue-table-wrap">
+              <table className="revenue-table">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3">Target owner</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Members</th>
-                    <th className="px-4 py-3 text-right">Annual comp</th>
-                    <th className="px-4 py-3 text-right">Monthly comp</th>
-                    <th className="px-4 py-3 text-right">Share</th>
-                    <th className="px-4 py-3 text-right">Monthly overhead</th>
-                    <th className="px-4 py-3 text-right">Monthly break-even</th>
-                    <th className="px-4 py-3 text-right">Monthly profit</th>
-                    <th className="px-4 py-3 text-right">Monthly target</th>
-                    <th className="px-4 py-3 text-right">Avg hourly rate</th>
-                    <th className="px-4 py-3 text-right">Hours for monthly target</th>
+                    <th className="col-owner">Owner</th>
+                    <th className="col-type">Type</th>
+                    <th className="col-members">Members</th>
+                    <th className="num">Annual</th>
+                    <th className="num">Monthly</th>
+                    <th className="num col-share">Share</th>
+                    <th className="num">Overhead</th>
+                    <th className="num">Break-even</th>
+                    <th className="num">Profit</th>
+                    <th className="num">Target</th>
+                    <th className="num">Avg rate</th>
+                    <th className="num col-hours">Hours req.</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTargets.map((target) => (
-                    <tr key={target.id} className="border-t border-[#eee9df]">
-                      <td className="px-4 py-4 font-medium">{target.name}</td>
-                      <td className="px-4 py-4 text-[#5f6b73]">{target.type}</td>
-                      <td className="max-w-56 px-4 py-4 text-[#5f6b73]">
-                        {target.members || target.title || "-"}
+                    <tr key={target.id}>
+                      <td className="col-owner font-medium" title={target.name}>{target.name}</td>
+                      <td className="col-type muted">{target.type}</td>
+                      <td className="col-members muted" title={target.members || target.title || "-"}>
+                        <span>{target.members || target.title || "-"}</span>
                       </td>
-                      <td className="px-4 py-4 text-right">{currency(target.annualSalary)}</td>
-                      <td className="px-4 py-4 text-right">{currency(target.monthlyCompensation)}</td>
-                      <td className="px-4 py-4 text-right">{percent(target.compensationShare)}</td>
-                      <td className="px-4 py-4 text-right">{currency(target.allocatedOverhead)}</td>
-                      <td className="px-4 py-4 text-right">{currency(target.breakEven)}</td>
-                      <td className="px-4 py-4 text-right">{currency(target.profitContribution)}</td>
-                      <td className="px-4 py-4 text-right font-semibold text-[#0f6b4f]">
+                      <td className="num">{currency(target.annualSalary)}</td>
+                      <td className="num">{currency(target.monthlyCompensation)}</td>
+                      <td className="num col-share">{percent(target.compensationShare)}</td>
+                      <td className="num">{currency(target.allocatedOverhead)}</td>
+                      <td className="num">{currency(target.breakEven)}</td>
+                      <td className="num">{currency(target.profitContribution)}</td>
+                      <td className="num font-semibold text-[#0f6b4f]">
                         {currency(target.finalTarget)}
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="num">
                         {target.type === "Individual" && target.averageHourlyRate > 0
                           ? currency(target.averageHourlyRate)
                           : target.type === "Individual"
                             ? "Add rate"
                             : "-"}
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="num col-hours">
                         {hours(target.hoursForMonthlyTarget)}
                       </td>
                     </tr>

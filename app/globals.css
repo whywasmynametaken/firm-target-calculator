@@ -208,6 +208,73 @@ textarea {
   padding: 12px 16px;
 }
 
+.revenue-table-wrap {
+  width: 100%;
+}
+
+.revenue-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.82rem;
+}
+
+.revenue-table thead {
+  background: #eee9df;
+  color: #5f6b73;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.revenue-table th,
+.revenue-table td {
+  border-top: 1px solid #eee9df;
+  padding: 10px 8px;
+  vertical-align: middle;
+}
+
+.revenue-table th {
+  border-top: 0;
+}
+
+.revenue-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.revenue-table .muted {
+  color: #5f6b73;
+}
+
+.revenue-table .col-owner {
+  width: 11%;
+}
+
+.revenue-table .col-type {
+  width: 7%;
+}
+
+.revenue-table .col-members {
+  width: 12%;
+}
+
+.revenue-table .col-members span,
+.revenue-table .col-owner {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.revenue-table .col-share {
+  width: 5.5%;
+}
+
+.revenue-table .col-hours {
+  width: 7%;
+}
+
 @media (min-width: 768px) {
   .employee-filters {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
