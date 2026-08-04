@@ -16,7 +16,7 @@ export type AppUser = {
 const OWNER_EMAIL = "drewbo17@gmail.com";
 const SESSION_COOKIE = "firm_target_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14;
-const PASSWORD_ITERATIONS = 210000;
+const PASSWORD_ITERATIONS = 100000;
 
 type RuntimeEnv = {
   AUTH_SECRET?: string;
