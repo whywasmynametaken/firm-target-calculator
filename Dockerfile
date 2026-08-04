@@ -18,4 +18,4 @@ ENV MINIFLARE_REGISTRY_PATH=/data/registry
 EXPOSE 3000
 VOLUME ["/data"]
 
-CMD ["npm", "run", "start", "--", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["./node_modules/.bin/wrangler", "dev", "dist/server/index.js", "--config", "dist/server/wrangler.json", "--ip", "0.0.0.0", "--port", "3000", "--local", "--persist-to", "/data/wrangler-state", "--inspector-port", "0", "--log-level", "warn", "--show-interactive-dev-session=false"]
