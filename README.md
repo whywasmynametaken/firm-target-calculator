@@ -20,8 +20,9 @@ This starter does not use `wrangler.jsonc`.
 
 ## TrueNAS / Docker Compose
 
-The root `docker-compose.yml` can be imported as a TrueNAS custom app YAML or
-used with Docker Compose from a cloned checkout.
+The root `docker-compose.yml` can be imported as a TrueNAS custom app YAML. It
+pulls the prebuilt image from GitHub Container Registry and exposes the app on
+host port `3020`.
 
 Before launching, change these environment values in `docker-compose.yml`:
 
@@ -40,7 +41,7 @@ The container stores local runtime database state in the
 `firm-target-calculator-data` volume. Keep that volume when upgrading the app.
 
 ```bash
-docker compose up -d --build
+docker compose up -d
 ```
 
 ## Included Shape

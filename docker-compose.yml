@@ -1,12 +1,10 @@
 services:
   firm-target-calculator:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/whywasmynametaken/firm-target-calculator:latest
     container_name: firm-target-calculator
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3020:3000"
     environment:
       AUTH_SECRET: "replace-with-a-long-random-secret"
       OWNER_SETUP_CODE: "replace-with-a-setup-code"
