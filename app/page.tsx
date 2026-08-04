@@ -639,6 +639,24 @@ export default function Home() {
 
     return matchesSearch && matchesTag && matchesType;
   });
+  const filteredTargetTotals = filteredTargets.reduce(
+    (totals, target) => ({
+      annualSalary: totals.annualSalary + target.annualSalary,
+      monthlyCompensation: totals.monthlyCompensation + target.monthlyCompensation,
+      allocatedOverhead: totals.allocatedOverhead + target.allocatedOverhead,
+      breakEven: totals.breakEven + target.breakEven,
+      profitContribution: totals.profitContribution + target.profitContribution,
+      finalTarget: totals.finalTarget + target.finalTarget,
+    }),
+    {
+      annualSalary: 0,
+      monthlyCompensation: 0,
+      allocatedOverhead: 0,
+      breakEven: 0,
+      profitContribution: 0,
+      finalTarget: 0,
+    },
+  );
   const canEdit = loaded && isEditor;
 
   function updateAuthDraft(event: ChangeEvent<HTMLInputElement>) {
@@ -1051,6 +1069,28 @@ export default function Home() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="col-owner font-semibold">
+                      <span>Displayed total</span>
+                    </td>
+                    <td className="col-type muted">{filteredTargets.length}</td>
+                    <td className="col-members muted">
+                      <span>visible rows</span>
+                    </td>
+                    <td className="num">{currency(filteredTargetTotals.annualSalary)}</td>
+                    <td className="num">{currency(filteredTargetTotals.monthlyCompensation)}</td>
+                    <td className="num col-share">-</td>
+                    <td className="num">{currency(filteredTargetTotals.allocatedOverhead)}</td>
+                    <td className="num">{currency(filteredTargetTotals.breakEven)}</td>
+                    <td className="num">{currency(filteredTargetTotals.profitContribution)}</td>
+                    <td className="num font-semibold text-[#0f6b4f]">
+                      {currency(filteredTargetTotals.finalTarget)}
+                    </td>
+                    <td className="num">-</td>
+                    <td className="num col-hours">-</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
             {model.targets.length === 0 ? (

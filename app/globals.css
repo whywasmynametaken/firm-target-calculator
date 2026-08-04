@@ -283,6 +283,12 @@ textarea {
   text-transform: uppercase;
 }
 
+.revenue-table tfoot {
+  background: #fbfaf7;
+  border-top: 2px solid #d8d2c4;
+  font-weight: 700;
+}
+
 .revenue-table th,
 .revenue-table td {
   border-top: 1px solid #eee9df;
