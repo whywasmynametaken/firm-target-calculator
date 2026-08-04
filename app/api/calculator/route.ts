@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { getDb } from "../../../db";
+import { ensureDatabase, getDb } from "../../../db";
 import { calculatorStates } from "../../../db/schema";
 import { authResponse, canEdit, getCurrentUser, ownerExists } from "../../auth";
 
@@ -35,6 +35,7 @@ function fallbackState(value: unknown): CalculatorState {
 }
 
 async function readStoredState() {
+  await ensureDatabase();
   const db = getDb();
   const [row] = await db
     .select()
@@ -85,6 +86,7 @@ export async function PUT(request: Request) {
     }
 
     const payload = fallbackState(await request.json());
+    await ensureDatabase();
     const db = getDb();
     const data = JSON.stringify(payload);
     const now = new Date().toISOString();

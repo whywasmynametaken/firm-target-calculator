@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { env } from "cloudflare:workers";
-import { getDb } from "../db";
+import { ensureDatabase, getDb } from "../db";
 import { appUsers } from "../db/schema";
 
 export type AppRole = "owner" | "editor" | "viewer";
@@ -20,6 +20,7 @@ const PASSWORD_ITERATIONS = 100000;
 
 type RuntimeEnv = {
   AUTH_SECRET?: string;
+  COOKIE_SECURE?: string;
   OWNER_SETUP_CODE?: string;
 };
 
@@ -36,6 +37,7 @@ export function canEdit(user: AppUser | null) {
 }
 
 export async function ownerExists() {
+  await ensureDatabase();
   const db = getDb();
   const [owner] = await db
     .select({ id: appUsers.id })
@@ -86,6 +88,7 @@ export async function createOwner({
 
 export async function authenticate(email: string, password: string) {
   const normalizedEmail = normalizeEmail(email);
+  await ensureDatabase();
   const db = getDb();
   const [user] = await db
     .select()
@@ -112,6 +115,7 @@ export async function getCurrentUser() {
   const session = await verifySessionToken(token);
   if (!session) return null;
 
+  await ensureDatabase();
   const db = getDb();
   const [user] = await db
     .select()
@@ -131,7 +135,7 @@ export async function setSessionCookie(user: AppUser) {
     maxAge: SESSION_TTL_SECONDS,
     path: "/",
     sameSite: "lax",
-    secure: true,
+    secure: useSecureCookie(),
   });
 }
 
@@ -142,7 +146,7 @@ export async function clearSessionCookie() {
     maxAge: 0,
     path: "/",
     sameSite: "lax",
-    secure: true,
+    secure: useSecureCookie(),
   });
 }
 
@@ -183,6 +187,10 @@ function toAppUser(user: {
 
 function id(prefix: string) {
   return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function useSecureCookie() {
+  return runtimeEnv().COOKIE_SECURE !== "false";
 }
 
 async function hashPassword(password: string) {
