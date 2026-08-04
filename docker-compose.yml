@@ -1,6 +1,7 @@
 services:
   firm-target-calculator:
     image: ghcr.io/whywasmynametaken/firm-target-calculator:latest
+    pull_policy: always
     container_name: firm-target-calculator
     restart: unless-stopped
     ports:
