@@ -6,7 +6,7 @@ import { getChatGPTUser } from "../../chatgpt-auth";
 export const dynamic = "force-dynamic";
 
 const STATE_ID = "main";
-const EDITOR_EMAIL = "drewbo17+chatgpt@gmail.com";
+const EDITOR_EMAIL = "drewbo17@gmail.com";
 
 type CalculatorState = {
   expenses: unknown[];
