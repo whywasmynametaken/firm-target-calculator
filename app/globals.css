@@ -110,6 +110,46 @@ textarea {
   padding: 12px;
 }
 
+.auth-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.auth-form input {
+  min-height: 38px;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  padding: 8px 10px;
+  color: #ffffff;
+  outline: none;
+}
+
+.auth-form input::placeholder {
+  color: rgba(234, 242, 239, 0.72);
+}
+
+.auth-form input:focus {
+  border-color: #f1b25b;
+  box-shadow: 0 0 0 3px rgba(241, 178, 91, 0.16);
+}
+
+.auth-form button,
+.auth-link {
+  min-height: 36px;
+  border: 1px solid rgba(241, 178, 91, 0.55);
+  background: #f1b25b;
+  color: #103d3b;
+  cursor: pointer;
+  font-weight: 800;
+  padding: 8px 10px;
+}
+
+.auth-link {
+  margin-top: 10px;
+}
+
 .field-label {
   display: grid;
   gap: 6px;

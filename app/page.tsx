@@ -84,9 +84,14 @@ type CalculatorResponse = {
   initialized: boolean;
   state: CalculatorState;
   isEditor: boolean;
-  user: { email: string; displayName: string } | null;
+  setupRequired: boolean;
+  user: { email: string; name: string | null; role: "owner" | "editor" | "viewer" } | null;
   updatedAt: string | null;
   updatedBy: string | null;
+  error?: string;
+};
+
+type AuthResponse = Pick<CalculatorResponse, "isEditor" | "setupRequired" | "user"> & {
   error?: string;
 };
 
@@ -385,10 +390,6 @@ function writeBrowserCalculatorState(state: CalculatorState) {
   localStorage.setItem("firm-target-calculator", JSON.stringify(state));
 }
 
-function editorSignInPath() {
-  return `/signin-with-chatgpt?return_to=${encodeURIComponent("/")}`;
-}
-
 export default function Home() {
   const [expenses, setExpenses] = useState<Expense[]>(starterExpenses);
   const [employees, setEmployees] = useState<Employee[]>(starterEmployees);
@@ -410,8 +411,16 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [isEditor, setIsEditor] = useState(false);
   const [currentUser, setCurrentUser] = useState<CalculatorResponse["user"]>(null);
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [authDraft, setAuthDraft] = useState({
+    email: "drewbo17@gmail.com",
+    name: "Andrew Borell",
+    password: "",
+    setupCode: "",
+  });
   const [syncStatus, setSyncStatus] = useState("Loading shared calculator...");
   const [syncError, setSyncError] = useState("");
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -436,12 +445,15 @@ export default function Home() {
         setScenarios(nextState.scenarios);
         setIsEditor(data.isEditor);
         setCurrentUser(data.user);
+        setSetupRequired(data.setupRequired);
         setLoaded(true);
         setSyncStatus(
           data.isEditor
             ? data.initialized
               ? "Editor mode"
               : "Editor mode - ready to seed shared data"
+            : data.setupRequired
+              ? "Owner setup required"
             : "Viewer mode",
         );
       } catch (error) {
@@ -628,6 +640,45 @@ export default function Home() {
     return matchesSearch && matchesTag && matchesType;
   });
   const canEdit = loaded && isEditor;
+
+  function updateAuthDraft(event: ChangeEvent<HTMLInputElement>) {
+    const { name, value } = event.target;
+    setAuthDraft((draft) => ({ ...draft, [name]: value }));
+  }
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthError("");
+    try {
+      const response = await fetch(
+        setupRequired ? "/api/auth/setup" : "/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(authDraft),
+        },
+      );
+      const data = (await response.json()) as AuthResponse;
+      if (!response.ok) {
+        throw new Error(data.error ?? "Unable to sign in");
+      }
+      setIsEditor(data.isEditor);
+      setCurrentUser(data.user);
+      setSetupRequired(data.setupRequired);
+      setAuthDraft((draft) => ({ ...draft, password: "", setupCode: "" }));
+      setSyncStatus(data.isEditor ? "Editor mode" : "Viewer mode");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Unable to sign in");
+    }
+  }
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setIsEditor(false);
+    setCurrentUser(null);
+    setAuthDraft((draft) => ({ ...draft, password: "", setupCode: "" }));
+    setSyncStatus("Viewer mode");
+  }
 
   function updateExpenseDraft(
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
@@ -823,10 +874,49 @@ export default function Home() {
                     ? `Signed in as ${currentUser.email}`
                     : "View-only access"}
               </p>
-              {!canEdit ? (
-                <a className="mt-2 inline-block font-semibold text-[#f1b25b]" href={editorSignInPath()}>
-                  Editor sign in
-                </a>
+              {canEdit ? (
+                <button className="auth-link" type="button" onClick={signOut}>
+                  Sign out
+                </button>
+              ) : (
+                <form className="auth-form" onSubmit={submitAuth}>
+                  {setupRequired ? (
+                    <input
+                      name="name"
+                      placeholder="Name"
+                      value={authDraft.name}
+                      onChange={updateAuthDraft}
+                    />
+                  ) : null}
+                  <input
+                    name="email"
+                    placeholder="Email"
+                    type="email"
+                    value={authDraft.email}
+                    onChange={updateAuthDraft}
+                  />
+                  <input
+                    name="password"
+                    placeholder={setupRequired ? "Create password" : "Password"}
+                    type="password"
+                    value={authDraft.password}
+                    onChange={updateAuthDraft}
+                  />
+                  {setupRequired ? (
+                    <input
+                      name="setupCode"
+                      placeholder="Setup code"
+                      value={authDraft.setupCode}
+                      onChange={updateAuthDraft}
+                    />
+                  ) : null}
+                  <button type="submit">
+                    {setupRequired ? "Create owner" : "Sign in"}
+                  </button>
+                </form>
+              )}
+              {authError ? (
+                <p className="mt-2 text-xs text-[#ffd9d9]">{authError}</p>
               ) : null}
               {syncError ? (
                 <p className="mt-2 text-xs text-[#ffd9d9]">{syncError}</p>

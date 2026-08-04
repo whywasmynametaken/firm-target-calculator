@@ -1,12 +1,11 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { calculatorStates } from "../../../db/schema";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { authResponse, canEdit, getCurrentUser, ownerExists } from "../../auth";
 
 export const dynamic = "force-dynamic";
 
 const STATE_ID = "main";
-const EDITOR_EMAIL = "drewbo17@gmail.com";
 
 type CalculatorState = {
   expenses: unknown[];
@@ -21,10 +20,6 @@ const starterState: CalculatorState = {
   profitMargin: 20,
   scenarios: [],
 };
-
-function isEditorEmail(email: string | null | undefined) {
-  return email?.toLowerCase() === EDITOR_EMAIL;
-}
 
 function fallbackState(value: unknown): CalculatorState {
   const state = value as Partial<CalculatorState> | null;
@@ -66,13 +61,15 @@ async function readStoredState() {
 
 export async function GET() {
   try {
-    const user = await getChatGPTUser();
-    const stored = await readStoredState();
+    const [user, hasOwner, stored] = await Promise.all([
+      getCurrentUser(),
+      ownerExists(),
+      readStoredState(),
+    ]);
 
     return Response.json({
       ...stored,
-      isEditor: isEditorEmail(user?.email),
-      user: user ? { email: user.email, displayName: user.displayName } : null,
+      ...authResponse(user, !hasOwner),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load calculator";
@@ -82,9 +79,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const user = await getChatGPTUser();
-    if (!isEditorEmail(user?.email)) {
-      return Response.json({ error: "Only the owner can edit this calculator." }, { status: 403 });
+    const user = await getCurrentUser();
+    if (!canEdit(user)) {
+      return Response.json({ error: "Only editors can edit this calculator." }, { status: 403 });
     }
 
     const payload = fallbackState(await request.json());
@@ -114,8 +111,7 @@ export async function PUT(request: Request) {
       state: payload,
       updatedAt: now,
       updatedBy: user.email,
-      isEditor: true,
-      user: { email: user.email, displayName: user.displayName },
+      ...authResponse(user, !(await ownerExists())),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save calculator";
