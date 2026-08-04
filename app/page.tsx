@@ -73,6 +73,23 @@ type Scenario = {
   employees: Employee[];
 };
 
+type CalculatorState = {
+  expenses: Expense[];
+  employees: Employee[];
+  profitMargin: number;
+  scenarios: Scenario[];
+};
+
+type CalculatorResponse = {
+  initialized: boolean;
+  state: CalculatorState;
+  isEditor: boolean;
+  user: { email: string; displayName: string } | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  error?: string;
+};
+
 const frequencies: Frequency[] = [
   "Monthly",
   "Weekly",
@@ -335,6 +352,43 @@ function downloadCsv(name: string, rows: (string | number | boolean)[][]) {
   URL.revokeObjectURL(url);
 }
 
+function normalizeCalculatorState(data: Partial<CalculatorState> | null): CalculatorState {
+  return {
+    expenses: Array.isArray(data?.expenses) ? data.expenses : starterExpenses,
+    employees: Array.isArray(data?.employees)
+      ? data.employees.map(normalizeEmployee)
+      : starterEmployees,
+    profitMargin:
+      typeof data?.profitMargin === "number" && Number.isFinite(data.profitMargin)
+        ? data.profitMargin
+        : 20,
+    scenarios: Array.isArray(data?.scenarios)
+      ? data.scenarios.map((scenario) => ({
+          ...scenario,
+          employees: scenario.employees.map(normalizeEmployee),
+        }))
+      : [],
+  };
+}
+
+function readBrowserCalculatorState() {
+  try {
+    const stored = localStorage.getItem("firm-target-calculator");
+    if (!stored) return null;
+    return normalizeCalculatorState(JSON.parse(stored));
+  } catch {
+    return null;
+  }
+}
+
+function writeBrowserCalculatorState(state: CalculatorState) {
+  localStorage.setItem("firm-target-calculator", JSON.stringify(state));
+}
+
+function editorSignInPath() {
+  return `/signin-with-chatgpt?return_to=${encodeURIComponent("/")}`;
+}
+
 export default function Home() {
   const [expenses, setExpenses] = useState<Expense[]>(starterExpenses);
   const [employees, setEmployees] = useState<Employee[]>(starterEmployees);
@@ -354,31 +408,83 @@ export default function Home() {
   const [scenarioName, setScenarioName] = useState("Current plan");
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [isEditor, setIsEditor] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CalculatorResponse["user"]>(null);
+  const [syncStatus, setSyncStatus] = useState("Loading shared calculator...");
+  const [syncError, setSyncError] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("firm-target-calculator");
-    if (stored) {
-      const data = JSON.parse(stored);
-      setExpenses(data.expenses ?? starterExpenses);
-      setEmployees((data.employees ?? starterEmployees).map(normalizeEmployee));
-      setProfitMargin(data.profitMargin ?? 20);
-      setScenarios(
-        (data.scenarios ?? []).map((scenario: Scenario) => ({
-          ...scenario,
-          employees: scenario.employees.map(normalizeEmployee),
-        })),
-      );
+    let cancelled = false;
+
+    async function loadCalculator() {
+      try {
+        const response = await fetch("/api/calculator", { cache: "no-store" });
+        const data = (await response.json()) as CalculatorResponse;
+        if (!response.ok) {
+          throw new Error(data.error ?? "Unable to load shared calculator");
+        }
+
+        const browserState = readBrowserCalculatorState();
+        const sharedState = normalizeCalculatorState(data.state);
+        const nextState =
+          !data.initialized && browserState ? browserState : sharedState;
+
+        if (cancelled) return;
+        setExpenses(nextState.expenses);
+        setEmployees(nextState.employees);
+        setProfitMargin(nextState.profitMargin);
+        setScenarios(nextState.scenarios);
+        setIsEditor(data.isEditor);
+        setCurrentUser(data.user);
+        setLoaded(true);
+        setSyncStatus(
+          data.isEditor
+            ? data.initialized
+              ? "Editor mode"
+              : "Editor mode - ready to seed shared data"
+            : "Viewer mode",
+        );
+      } catch (error) {
+        if (cancelled) return;
+        setLoaded(true);
+        setSyncError(error instanceof Error ? error.message : "Unable to load shared calculator");
+        setSyncStatus("Using browser fallback");
+      }
     }
-    setLoaded(true);
+
+    loadCalculator();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
-    localStorage.setItem(
-      "firm-target-calculator",
-      JSON.stringify({ expenses, employees, profitMargin, scenarios }),
-    );
-  }, [employees, expenses, loaded, profitMargin, scenarios]);
+    if (!loaded || !isEditor) return;
+
+    const state = { expenses, employees, profitMargin, scenarios };
+    const timeout = window.setTimeout(async () => {
+      try {
+        setSyncStatus("Saving shared calculator...");
+        const response = await fetch("/api/calculator", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(state),
+        });
+        const data = (await response.json()) as CalculatorResponse;
+        if (!response.ok) {
+          throw new Error(data.error ?? "Unable to save shared calculator");
+        }
+        writeBrowserCalculatorState(state);
+        setSyncError("");
+        setSyncStatus("Saved to shared calculator");
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : "Unable to save shared calculator");
+        setSyncStatus("Save failed");
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [employees, expenses, isEditor, loaded, profitMargin, scenarios]);
 
   const model = useMemo(() => {
     const activeExpenses = expenses.filter((expense) => expense.active);
@@ -521,6 +627,7 @@ export default function Home() {
 
     return matchesSearch && matchesTag && matchesType;
   });
+  const canEdit = loaded && isEditor;
 
   function updateExpenseDraft(
     event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
@@ -575,6 +682,7 @@ export default function Home() {
 
   function submitExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canEdit) return;
     if (!expenseDraft.name.trim()) return;
     if (editingExpenseId) {
       setExpenses((items) =>
@@ -591,6 +699,7 @@ export default function Home() {
 
   function submitEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canEdit) return;
     if (!employeeDraft.name.trim()) return;
     const { title: _legacyTitle, ...draftWithoutTitle } = employeeDraft;
     const nextEmployee = {
@@ -613,6 +722,7 @@ export default function Home() {
   }
 
   function saveScenario() {
+    if (!canEdit) return;
     const name = scenarioName.trim() || "Untitled scenario";
     setScenarios((items) => [
       {
@@ -628,6 +738,7 @@ export default function Home() {
   }
 
   function loadScenario(scenario: Scenario) {
+    if (!canEdit) return;
     setExpenses(scenario.expenses);
     setEmployees(scenario.employees.map(normalizeEmployee));
     setProfitMargin(scenario.profitMargin);
@@ -703,11 +814,30 @@ export default function Home() {
             </p>
           </div>
           <div className="w-full max-w-sm border border-white/20 bg-white/10 p-5 backdrop-blur">
+            <div className="mb-4 border border-white/15 bg-white/10 px-3 py-2 text-sm text-[#eaf2ef]">
+              <p className="font-semibold">{syncStatus}</p>
+              <p className="mt-1 text-xs text-[#dce7e2]">
+                {canEdit
+                  ? `Signed in as ${currentUser?.email ?? "editor"}`
+                  : currentUser
+                    ? `Signed in as ${currentUser.email}`
+                    : "View-only access"}
+              </p>
+              {!canEdit ? (
+                <a className="mt-2 inline-block font-semibold text-[#f1b25b]" href={editorSignInPath()}>
+                  Editor sign in
+                </a>
+              ) : null}
+              {syncError ? (
+                <p className="mt-2 text-xs text-[#ffd9d9]">{syncError}</p>
+              ) : null}
+            </div>
             <label className="text-sm font-medium text-[#eaf2ef]" htmlFor="margin">
               Desired profit margin
             </label>
             <div className="mt-3 flex items-center gap-3">
               <input
+                disabled={!canEdit}
                 id="margin"
                 min="0"
                 max="99"
@@ -720,6 +850,7 @@ export default function Home() {
               <input
                 aria-label="Profit margin percentage"
                 className="w-20 border border-white/30 bg-white/15 px-3 py-2 text-right text-lg font-semibold text-white outline-none"
+                disabled={!canEdit}
                 min="0"
                 max="99"
                 step="0.5"
@@ -847,24 +978,28 @@ export default function Home() {
 
         <section className="mt-6 grid gap-6">
           <Panel title="Expenses" action={<button className="btn-secondary" onClick={exportExpenses} type="button">Export CSV</button>}>
-            <form className="form-grid" onSubmit={submitExpense}>
-              <input className="field" name="name" placeholder="Expense name" value={expenseDraft.name} onChange={updateExpenseDraft} />
-              <select className="field" name="category" value={expenseDraft.category} onChange={updateExpenseDraft}>
-                {categories.map((category) => <option key={category}>{category}</option>)}
-              </select>
-              <input className="field" min="0" name="amount" placeholder="Amount" type="number" value={expenseDraft.amount} onChange={updateExpenseDraft} />
-              <select className="field" name="frequency" value={expenseDraft.frequency} onChange={updateExpenseDraft}>
-                {frequencies.map((frequency) => <option key={frequency}>{frequency}</option>)}
-              </select>
-              <textarea className="field md:col-span-2" name="notes" placeholder="Notes" value={expenseDraft.notes} onChange={updateExpenseDraft} />
-              <label className="check">
-                <input name="active" type="checkbox" checked={expenseDraft.active} onChange={updateExpenseDraft} />
-                Active
-              </label>
-              <button className="btn-primary" type="submit">
-                {editingExpenseId ? "Update expense" : "Add expense"}
-              </button>
-            </form>
+            {canEdit ? (
+              <form className="form-grid" onSubmit={submitExpense}>
+                <input className="field" name="name" placeholder="Expense name" value={expenseDraft.name} onChange={updateExpenseDraft} />
+                <select className="field" name="category" value={expenseDraft.category} onChange={updateExpenseDraft}>
+                  {categories.map((category) => <option key={category}>{category}</option>)}
+                </select>
+                <input className="field" min="0" name="amount" placeholder="Amount" type="number" value={expenseDraft.amount} onChange={updateExpenseDraft} />
+                <select className="field" name="frequency" value={expenseDraft.frequency} onChange={updateExpenseDraft}>
+                  {frequencies.map((frequency) => <option key={frequency}>{frequency}</option>)}
+                </select>
+                <textarea className="field md:col-span-2" name="notes" placeholder="Notes" value={expenseDraft.notes} onChange={updateExpenseDraft} />
+                <label className="check">
+                  <input name="active" type="checkbox" checked={expenseDraft.active} onChange={updateExpenseDraft} />
+                  Active
+                </label>
+                <button className="btn-primary" type="submit">
+                  {editingExpenseId ? "Update expense" : "Add expense"}
+                </button>
+              </form>
+            ) : (
+              <p className="viewer-note">Viewing shared expenses. Sign in as the editor to make changes.</p>
+            )}
             <div className="mt-4 flex items-center justify-between gap-3">
               <select className="field max-w-56" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
                 <option>All</option>
@@ -881,100 +1016,106 @@ export default function Home() {
                       {expense.category} | {currency(expense.amount)} {expense.frequency} | {currency(monthlyAmount(expense.amount, expense.frequency))}/mo
                     </p>
                   </div>
-                  <RowActions
-                    active={expense.active}
-                    onEdit={() => {
-                      setExpenseDraft({ ...expense });
-                      setEditingExpenseId(expense.id);
-                    }}
-                    onToggle={() => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, active: !item.active } : item))}
-                    onDelete={() => setExpenses((items) => items.filter((item) => item.id !== expense.id))}
-                  />
+                  {canEdit ? (
+                    <RowActions
+                      active={expense.active}
+                      onEdit={() => {
+                        setExpenseDraft({ ...expense });
+                        setEditingExpenseId(expense.id);
+                      }}
+                      onToggle={() => setExpenses((items) => items.map((item) => item.id === expense.id ? { ...item, active: !item.active } : item))}
+                      onDelete={() => setExpenses((items) => items.filter((item) => item.id !== expense.id))}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ItemList>
           </Panel>
 
           <Panel title="Employees">
-            <form className="form-grid" onSubmit={submitEmployee}>
-              <input className="field" name="name" placeholder="Employee name" value={employeeDraft.name} onChange={updateEmployeeDraft} />
-              <label className="field-label">
-                <span>Tags</span>
-                <div className="tag-input">
-                  <TagList tags={employeeDraft.tags} onRemove={removeEmployeeTag} />
-                  <input
-                    aria-label="Add employee tag"
-                    placeholder="Type a tag, then Enter or comma"
-                    value={tagDraft}
-                    onBlur={() => addEmployeeTags()}
-                    onChange={(event) => setTagDraft(event.target.value)}
-                    onKeyDown={handleTagKeyDown}
-                  />
+            {canEdit ? (
+              <form className="form-grid" onSubmit={submitEmployee}>
+                <input className="field" name="name" placeholder="Employee name" value={employeeDraft.name} onChange={updateEmployeeDraft} />
+                <label className="field-label">
+                  <span>Tags</span>
+                  <div className="tag-input">
+                    <TagList tags={employeeDraft.tags} onRemove={removeEmployeeTag} />
+                    <input
+                      aria-label="Add employee tag"
+                      placeholder="Type a tag, then Enter or comma"
+                      value={tagDraft}
+                      onBlur={() => addEmployeeTags()}
+                      onChange={(event) => setTagDraft(event.target.value)}
+                      onKeyDown={handleTagKeyDown}
+                    />
+                  </div>
+                </label>
+                <label className="field-label">
+                  <span>Annual salary</span>
+                  <input className="field" min="0" name="annualSalary" placeholder="Annual salary" type="number" value={employeeDraft.annualSalary} onChange={updateEmployeeDraft} />
+                </label>
+                <div className="calculated-field">
+                  <span>Calculated monthly</span>
+                  <strong>{currency(employeeDraft.annualSalary / 12)}</strong>
                 </div>
-              </label>
-              <label className="field-label">
-                <span>Annual salary</span>
-                <input className="field" min="0" name="annualSalary" placeholder="Annual salary" type="number" value={employeeDraft.annualSalary} onChange={updateEmployeeDraft} />
-              </label>
-              <div className="calculated-field">
-                <span>Calculated monthly</span>
-                <strong>{currency(employeeDraft.annualSalary / 12)}</strong>
-              </div>
-              <label className="field-label">
-                <span>Revenue responsibility</span>
-                <select
-                  className="field"
-                  name="revenueResponsibility"
-                  value={employeeDraft.revenueResponsibility}
-                  onChange={updateEmployeeDraft}
-                >
-                  <option value="individual">Individual target</option>
-                  <option value="team">Shared team target</option>
-                  <option value="none">No revenue target</option>
-                </select>
-              </label>
-              {employeeDraft.revenueResponsibility === "individual" ? (
                 <label className="field-label">
-                  <span>Average hourly rate</span>
-                  <input
+                  <span>Revenue responsibility</span>
+                  <select
                     className="field"
-                    min="0"
-                    name="averageHourlyRate"
-                    placeholder="Average hourly rate"
-                    type="number"
-                    value={employeeDraft.averageHourlyRate ?? 0}
+                    name="revenueResponsibility"
+                    value={employeeDraft.revenueResponsibility}
                     onChange={updateEmployeeDraft}
-                  />
+                  >
+                    <option value="individual">Individual target</option>
+                    <option value="team">Shared team target</option>
+                    <option value="none">No revenue target</option>
+                  </select>
                 </label>
-              ) : null}
-              {employeeDraft.revenueResponsibility === "team" ? (
-                <label className="field-label">
-                  <span>Team name</span>
-                  <input
-                    className="field"
-                    name="teamName"
-                    placeholder="Litigation Support"
-                    value={employeeDraft.teamName}
-                    onChange={updateEmployeeDraft}
-                  />
-                </label>
-              ) : (
-                <label className="check">
-                  <input name="active" type="checkbox" checked={employeeDraft.active} onChange={updateEmployeeDraft} />
-                  Active
-                </label>
-              )}
-              {employeeDraft.revenueResponsibility === "team" ? (
-                <label className="check md:col-span-2">
-                  <input name="active" type="checkbox" checked={employeeDraft.active} onChange={updateEmployeeDraft} />
-                  Active
-                </label>
-              ) : null}
-              <textarea className="field md:col-span-2" name="notes" placeholder="Notes" value={employeeDraft.notes} onChange={updateEmployeeDraft} />
-              <button className="btn-primary md:col-span-2" type="submit">
-                {editingEmployeeId ? "Update employee" : "Add employee"}
-              </button>
-            </form>
+                {employeeDraft.revenueResponsibility === "individual" ? (
+                  <label className="field-label">
+                    <span>Average hourly rate</span>
+                    <input
+                      className="field"
+                      min="0"
+                      name="averageHourlyRate"
+                      placeholder="Average hourly rate"
+                      type="number"
+                      value={employeeDraft.averageHourlyRate ?? 0}
+                      onChange={updateEmployeeDraft}
+                    />
+                  </label>
+                ) : null}
+                {employeeDraft.revenueResponsibility === "team" ? (
+                  <label className="field-label">
+                    <span>Team name</span>
+                    <input
+                      className="field"
+                      name="teamName"
+                      placeholder="Litigation Support"
+                      value={employeeDraft.teamName}
+                      onChange={updateEmployeeDraft}
+                    />
+                  </label>
+                ) : (
+                  <label className="check">
+                    <input name="active" type="checkbox" checked={employeeDraft.active} onChange={updateEmployeeDraft} />
+                    Active
+                  </label>
+                )}
+                {employeeDraft.revenueResponsibility === "team" ? (
+                  <label className="check md:col-span-2">
+                    <input name="active" type="checkbox" checked={employeeDraft.active} onChange={updateEmployeeDraft} />
+                    Active
+                  </label>
+                ) : null}
+                <textarea className="field md:col-span-2" name="notes" placeholder="Notes" value={employeeDraft.notes} onChange={updateEmployeeDraft} />
+                <button className="btn-primary md:col-span-2" type="submit">
+                  {editingEmployeeId ? "Update employee" : "Add employee"}
+                </button>
+              </form>
+            ) : (
+              <p className="viewer-note">Viewing shared employees. Sign in as the editor to make changes.</p>
+            )}
             <div className="employee-filters">
               <input
                 className="field"
@@ -1006,16 +1147,18 @@ export default function Home() {
                     </p>
                     <TagList tags={employeeTags(employee)} />
                   </div>
-                  <RowActions
-                    active={employee.active}
-                    onEdit={() => {
-                      setEmployeeDraft(normalizeEmployee(employee));
-                      setTagDraft("");
-                      setEditingEmployeeId(employee.id);
-                    }}
-                    onToggle={() => setEmployees((items) => items.map((item) => item.id === employee.id ? { ...item, active: !item.active } : item))}
-                    onDelete={() => setEmployees((items) => items.filter((item) => item.id !== employee.id))}
-                  />
+                  {canEdit ? (
+                    <RowActions
+                      active={employee.active}
+                      onEdit={() => {
+                        setEmployeeDraft(normalizeEmployee(employee));
+                        setTagDraft("");
+                        setEditingEmployeeId(employee.id);
+                      }}
+                      onToggle={() => setEmployees((items) => items.map((item) => item.id === employee.id ? { ...item, active: !item.active } : item))}
+                      onDelete={() => setEmployees((items) => items.filter((item) => item.id !== employee.id))}
+                    />
+                  ) : null}
                 </li>
               ))}
             </ItemList>
@@ -1027,17 +1170,21 @@ export default function Home() {
           </Panel>
 
           <Panel title="Saved scenarios">
-            <div className="flex gap-2">
-              <input
-                className="field"
-                value={scenarioName}
-                onChange={(event) => setScenarioName(event.target.value)}
-                aria-label="Scenario name"
-              />
-              <button className="btn-primary shrink-0" type="button" onClick={saveScenario}>
-                Save
-              </button>
-            </div>
+            {canEdit ? (
+              <div className="flex gap-2">
+                <input
+                  className="field"
+                  value={scenarioName}
+                  onChange={(event) => setScenarioName(event.target.value)}
+                  aria-label="Scenario name"
+                />
+                <button className="btn-primary shrink-0" type="button" onClick={saveScenario}>
+                  Save
+                </button>
+              </div>
+            ) : (
+              <p className="viewer-note">Saved scenarios are visible here. Loading a scenario changes the shared plan, so only the editor can load one.</p>
+            )}
             <div className="mt-4 space-y-2">
               {scenarios.map((scenario) => (
                 <div
@@ -1050,13 +1197,15 @@ export default function Home() {
                       {new Date(scenario.savedAt).toLocaleString()}
                     </p>
                   </div>
-                  <button
-                    className="btn-secondary"
-                    type="button"
-                    onClick={() => loadScenario(scenario)}
-                  >
-                    Load
-                  </button>
+                  {canEdit ? (
+                    <button
+                      className="btn-secondary"
+                      type="button"
+                      onClick={() => loadScenario(scenario)}
+                    >
+                      Load
+                    </button>
+                  ) : null}
                 </div>
               ))}
               {scenarios.length === 0 ? (
